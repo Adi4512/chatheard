@@ -1,6 +1,7 @@
 import React from "react";
 import Icon from "./Icon";
 import VoiceSettings from "./VoiceSettings";
+import SpeedControl from "./SpeedControl";
 import { useChat } from "../context/ChatContext";
 
 const Header = () => {
@@ -18,11 +19,14 @@ const Header = () => {
               WhisperTalk
             </h1>
           </div>
-          <div className="flex items-center space-x-4">
-            <p className="text-sm text-gray-500 hidden md:block font-medium">
-              Let your messages be heard
-            </p>
-            <VoiceSettings onSelectVoice={setVoice} />
+          <div className="flex items-center space-x-3">
+            <div className="hidden md:block text-sm text-gray-500 font-medium">
+              <span className="mr-3 text-primary-600">Controls:</span>
+            </div>
+            <div className="flex space-x-2">
+              <VoiceSettings onSelectVoice={setVoice} />
+              <SpeedControl />
+            </div>
           </div>
         </div>
       </div>

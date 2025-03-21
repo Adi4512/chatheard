@@ -34,6 +34,12 @@ const ChatMessage = ({
             </span>
             <span className="mx-2">•</span>
             <span>{formattedTime}</span>
+            {isPlaying && (
+              <span className="ml-2 flex items-center text-primary-500">
+                <Icon name="Volume2" size={12} className="mr-1" />
+                Speaking...
+              </span>
+            )}
           </div>
           <div
             className={`rounded-2xl p-4 shadow-sm ${
@@ -43,21 +49,6 @@ const ChatMessage = ({
             }`}
           >
             <p className="whitespace-pre-wrap">{message}</p>
-            <div className="flex justify-end mt-2">
-              <button
-                className={`flex items-center space-x-1 text-xs py-1 px-2 rounded-full ${
-                  isCurrentUser
-                    ? "bg-white bg-opacity-20 hover:bg-opacity-30 text-white"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-600"
-                } transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                  isCurrentUser ? "focus:ring-white" : "focus:ring-gray-400"
-                }`}
-                onClick={onPlayAudio}
-              >
-                <Icon name={isPlaying ? "Square" : "Volume2"} size={14} />
-                <span>{isPlaying ? "Stop" : "Listen"}</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>

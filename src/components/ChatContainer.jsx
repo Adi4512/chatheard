@@ -3,12 +3,14 @@ import ChatMessage from "./ChatMessage";
 import TextInput from "./TextInput";
 import Button from "./Button";
 import Icon from "./Icon";
+import WelcomeMessage from "./WelcomeMessage";
 import { useChat } from "../context/ChatContext";
 
 const ChatContainer = () => {
   const [inputText, setInputText] = useState("");
+  const [showWelcome, setShowWelcome] = useState(true);
   const chatEndRef = useRef(null);
-  const { messages, sendMessage, playMessage, playingMessageId, speaking } =
+  const { messages, sendMessage, playText, playingMessageId, isPlaying } =
     useChat();
 
   // Scroll to bottom whenever messages change
@@ -21,6 +23,17 @@ const ChatContainer = () => {
       setInputText("");
     }
   };
+
+  const handlePlayMessage = (message) => {
+    // Only partner messages can be played manually
+    if (message.sender === "partner") {
+      playText(message.text, message.id);
+    }
+  };
+
+  if (showWelcome) {
+    return <WelcomeMessage onDismiss={() => setShowWelcome(false)} />;
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -45,8 +58,8 @@ const ChatContainer = () => {
               message={message.text}
               sender={message.sender}
               timestamp={message.timestamp}
-              onPlayAudio={() => playMessage(message)}
-              isPlaying={speaking && playingMessageId === message.id}
+              onPlayAudio={() => handlePlayMessage(message)}
+              isPlaying={isPlaying && playingMessageId === message.id}
             />
           ))
         )}
