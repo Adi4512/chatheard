@@ -1,41 +1,52 @@
-import React from "react";
+"use client";
+
+import { useState, useRef } from "react";
+import Button from "./Button";
 import Icon from "./Icon";
 
-const TextInput = ({
-  label,
-  placeholder,
-  value,
-  onChange,
-  className = "",
-  error,
-  ...props
-}) => {
+const TextInput = ({ onSend, isSending, className = "" }) => {
+  const [text, setText] = useState("");
+  const inputRef = useRef(null);
+
+  const handleChange = (e) => {
+    setText(e.target.value);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleSend = () => {
+    if (text.trim()) {
+      onSend(text);
+      setText("");
+    }
+  };
+
   return (
-    <div className="w-full">
-      {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          {label}
-        </label>
-      )}
-      <div className="relative">
-        <textarea
-          value={value}
-          onChange={onChange}
-          className={`min-h-12 w-full rounded-xl border-gray-200 bg-gray-50 p-4 text-sm shadow-sm transition-colors placeholder:text-gray-400 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 ${
-            error
-              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-              : "border"
-          } ${className}`}
-          placeholder={placeholder}
-          rows="2"
-          {...props}
+    <div className={`flex items-center gap-2 w-full ${className}`}>
+      <div className="flex-1 border border-gray-300 rounded-full overflow-hidden bg-white shadow-sm">
+        <input
+          ref={inputRef}
+          type="text"
+          value={text}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Type your message..."
+          className="w-full h-10 px-4 text-gray-700 text-base outline-none"
         />
-        <div className="absolute right-3 bottom-3 flex items-center space-x-1 text-gray-400">
-          <Icon name="MessageSquare" size={14} />
-          <span className="text-xs">Enter to send</span>
-        </div>
       </div>
-      {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+      <Button
+        onClick={handleSend}
+        disabled={!text.trim() || isSending}
+        className="h-10 w-10 rounded-full flex items-center justify-center shadow-md"
+        variant="primary"
+      >
+        <Icon name="Send" size={18} />
+      </Button>
     </div>
   );
 };

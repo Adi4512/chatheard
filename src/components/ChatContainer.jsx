@@ -1,94 +1,116 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
+import { useChatContext } from "../context/ChatContext";
 import ChatMessage from "./ChatMessage";
 import TextInput from "./TextInput";
-import Button from "./Button";
 import Icon from "./Icon";
 import WelcomeMessage from "./WelcomeMessage";
-import { useChat } from "../context/ChatContext";
 
 const ChatContainer = () => {
-  const [inputText, setInputText] = useState("");
-  const [showWelcome, setShowWelcome] = useState(true);
-  const chatEndRef = useRef(null);
-  const { messages, sendMessage, playText, playingMessageId, isPlaying } =
-    useChat();
+  const { messages, addMessage, isProcessing, playingMessageId, playText } =
+    useChatContext();
 
-  // Scroll to bottom whenever messages change
+  // Check if welcome has been shown before
+  const [showWelcome, setShowWelcome] = useState(() => {
+    const hasSeenWelcome = localStorage.getItem("hasSeenWelcome");
+    return hasSeenWelcome !== "true";
+  });
+
+  const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+
+  // Scroll to bottom when messages change
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    try {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    } catch (error) {
+      console.error("Error scrolling to bottom:", error);
+    }
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (sendMessage(inputText)) {
-      setInputText("");
-    }
+  const handleSendMessage = (text) => {
+    addMessage(text);
   };
 
-  const handlePlayMessage = (message) => {
-    // Only partner messages can be played manually
-    if (message.sender === "partner") {
-      playText(message.text, message.id);
-    }
+  const handleDismissWelcome = () => {
+    localStorage.setItem("hasSeenWelcome", "true");
+    setShowWelcome(false);
   };
 
+  // If showing welcome screen, render only that
   if (showWelcome) {
-    return <WelcomeMessage onDismiss={() => setShowWelcome(false)} />;
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+        <WelcomeMessage onDismiss={handleDismissWelcome} />
+      </div>
+    );
   }
+
+  // Handle manual test of text-to-speech
+  const testSpeech = () => {
+    playText(
+      "This is a test message to verify that text-to-speech is working properly. Can you hear this message?",
+      Date.now()
+    );
+  };
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-6 space-y-4">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400">
-            <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-6">
-              <Icon name="MessageSquare" size={48} className="text-gray-300" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-500 mb-2">
-              No messages yet
-            </h3>
-            <p className="text-sm text-gray-400 text-center max-w-sm">
-              Type something below and press send to start your silent
-              conversation
-            </p>
-          </div>
-        ) : (
-          messages.map((message) => (
-            <ChatMessage
-              key={message.id}
-              message={message.text}
-              sender={message.sender}
-              timestamp={message.timestamp}
-              onPlayAudio={() => handlePlayMessage(message)}
-              isPlaying={isPlaying && playingMessageId === message.id}
-            />
-          ))
-        )}
-        <div ref={chatEndRef} />
+      {/* Chat header with test button */}
+      <div className="border-b border-gray-200 p-2 flex justify-between items-center bg-gray-50">
+        <h2 className="text-sm font-medium text-gray-700">Chat Messages</h2>
+        <button
+          onClick={testSpeech}
+          className="text-xs bg-primary-500 hover:bg-primary-600 text-white px-2 py-1 rounded"
+        >
+          Test Speech
+        </button>
       </div>
 
-      <div className="border-t border-gray-100 p-4 lg:p-6 bg-white">
-        <div className="flex space-x-2 items-end">
-          <TextInput
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Type your message here..."
-            className="flex-1"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!inputText.trim()}
-            variant="primary"
-            className="rounded-full h-12 w-12 p-0 flex items-center justify-center"
-          >
-            <Icon name="Send" size={20} />
-          </Button>
+      {/* Messages area with explicit scrolling */}
+      <div
+        className="overflow-y-scroll flex-grow"
+        ref={scrollContainerRef}
+        style={{
+          height: "calc(100vh - 180px)",
+          scrollbarWidth: "thin",
+          scrollbarColor: "#d1d5db #f9fafb",
+        }}
+      >
+        <div className="p-4">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 py-12">
+              <Icon
+                name="MessageCircle"
+                size={36}
+                className="text-gray-300 mb-4"
+              />
+              <p className="text-gray-500 text-lg text-center">
+                No messages yet. Start the conversation!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 pb-4">
+              {messages.map((message) => (
+                <ChatMessage
+                  key={message.id}
+                  message={message.text}
+                  sender={message.sender}
+                  timestamp={message.timestamp}
+                  onPlayAudio={() => playText(message.text, message.id)}
+                  isPlaying={playingMessageId === message.id}
+                />
+              ))}
+              <div ref={messagesEndRef} className="h-4" />
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Fixed input area */}
+      <div className="border-t border-gray-200 py-3 px-4 bg-white shadow-md">
+        <TextInput onSend={handleSendMessage} isSending={isProcessing} />
       </div>
     </div>
   );

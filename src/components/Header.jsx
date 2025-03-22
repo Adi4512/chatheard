@@ -2,32 +2,50 @@ import React from "react";
 import Icon from "./Icon";
 import VoiceSettings from "./VoiceSettings";
 import SpeedControl from "./SpeedControl";
-import { useChat } from "../context/ChatContext";
+import { useChatContext } from "../context/ChatContext";
 
 const Header = () => {
-  const { setVoice } = useChat();
+  const { setVoice } = useChatContext();
+
+  const handleShowHelp = () => {
+    localStorage.removeItem("hasSeenWelcome");
+    window.location.reload();
+  };
 
   return (
-    <header className="bg-white py-4 px-6 shadow-sm bg-opacity-80 backdrop-blur-sm sticky top-0 z-10">
-      <div className="container mx-auto max-w-4xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-love to-love-light flex items-center justify-center shadow-md">
-              <Icon name="Heart" className="text-white" size={20} />
-            </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-love-dark via-love to-secondary-500 text-transparent bg-clip-text">
-              WhisperTalk
-            </h1>
+    <header className="bg-white border-b border-gray-200 py-2 px-3 sticky top-0 z-10 shadow-sm">
+      <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="flex items-center">
+          <Icon
+            name="MessageCircle"
+            className="text-primary-500 mr-1.5"
+            size={22}
+          />
+          <h1 className="text-lg font-bold text-gray-800">WhisperTalk</h1>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center">
+            <span className="text-xs text-gray-600 mr-1 whitespace-nowrap">
+              Voice:
+            </span>
+            <VoiceSettings onSelectVoice={setVoice} />
           </div>
-          <div className="flex items-center space-x-3">
-            <div className="hidden md:block text-sm text-gray-500 font-medium">
-              <span className="mr-3 text-primary-600">Controls:</span>
-            </div>
-            <div className="flex space-x-2">
-              <VoiceSettings onSelectVoice={setVoice} />
-              <SpeedControl />
-            </div>
+
+          <div className="flex items-center">
+            <span className="text-xs text-gray-600 mr-1 whitespace-nowrap">
+              Speed:
+            </span>
+            <SpeedControl />
           </div>
+
+          <button
+            onClick={handleShowHelp}
+            className="text-gray-500 hover:text-primary-600 transition-colors p-1"
+            title="Show Welcome Screen"
+          >
+            <Icon name="HelpCircle" size={18} />
+          </button>
         </div>
       </div>
     </header>

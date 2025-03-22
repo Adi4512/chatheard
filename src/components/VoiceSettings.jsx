@@ -175,67 +175,28 @@ const VoiceSettings = ({ onSelectVoice }) => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 font-medium rounded-full px-4 py-2 text-sm"
+        className="flex items-center justify-center bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
       >
-        <Icon name="Mic" size={16} />
-        <span className="max-w-28 truncate">{selectedVoice.name}</span>
-        <Icon name={isOpen ? "ChevronUp" : "ChevronDown"} size={14} />
+        <Icon name="Mic" size={14} className="mr-1.5 text-gray-500" />
+        {selectedVoice.name === "Male Voice" ? "Male" : "Female"}
       </button>
 
       {isOpen && voices.length > 0 && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
-          <div className="px-4 py-2 border-b border-gray-100">
-            <h3 className="font-medium text-gray-800">Select Voice</h3>
-          </div>
-          <ul className="py-1">
+        <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+          <div className="py-1">
             {voices.map((voice) => (
-              <li
+              <button
                 key={voice.name}
                 onClick={() => handleSelectVoice(voice)}
-                className={`cursor-pointer px-4 py-2 text-sm hover:bg-gray-50 flex items-center space-x-2 ${
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${
                   selectedVoice.name === voice.name
-                    ? "bg-primary-50 text-primary-600"
+                    ? "text-primary-600 font-medium"
                     : "text-gray-700"
                 }`}
               >
-                {selectedVoice.name === voice.name && (
-                  <Icon name="Check" size={16} className="text-primary-600" />
-                )}
-                <span
-                  className={
-                    selectedVoice.name === voice.name ? "font-medium" : ""
-                  }
-                >
-                  {voice.name}
-                </span>
-                {voiceDetectionComplete && !voice.browserSupported && (
-                  <span className="text-xs text-amber-500 ml-1">
-                    (simulated)
-                  </span>
-                )}
-              </li>
+                {voice.name === "Male Voice" ? "Male" : "Female"}
+              </button>
             ))}
-          </ul>
-
-          {/* Debug tools section */}
-          <div className="mt-2 px-4 py-2 border-t border-gray-100">
-            {!voiceDetectionComplete ? (
-              <div className="text-xs text-gray-500">Loading voices...</div>
-            ) : (
-              <div
-                className="text-xs text-gray-500 cursor-pointer"
-                onClick={() => setDebugMode(!debugMode)}
-                onDoubleClick={() => testVoice(selectedVoice)}
-              >
-                {!voices.some((v) => v.browserSupported) && (
-                  <div className="text-xs text-amber-600 mb-1">
-                    Using simulated voice profiles. Download voice packs for
-                    better results.
-                  </div>
-                )}
-                {debugMode ? "Debug Mode ON" : ""}
-              </div>
-            )}
           </div>
         </div>
       )}

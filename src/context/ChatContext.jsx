@@ -4,9 +4,11 @@ import React, {
   useState,
   useCallback,
   useRef,
+  useEffect,
 } from "react";
 import { useSpeechSynthesis } from "react-speech-kit";
 
+// Create context
 const ChatContext = createContext(null);
 
 // Voice profiles for browsers with limited voice options
@@ -21,7 +23,62 @@ const VOICE_PROFILES = {
   },
 };
 
-export const ChatProvider = ({ children }) => {
+// Split long text into manageable chunks for speech synthesis
+const splitTextIntoChunks = (text, maxLength = 150) => {
+  if (!text || typeof text !== "string") return [""];
+
+  // Add a small pause at the beginning to prevent first word skipping
+  text = " " + text.trim();
+
+  if (text.length <= maxLength) return [text];
+
+  // Try to split at sentence or comma boundaries
+  const sentenceBreaks = text.match(/[^.!?;,]+[.!?;,]+/g) || [];
+  if (!sentenceBreaks.length) return [text]; // If no sentence boundaries found
+
+  const chunks = [];
+  let currentChunk = "";
+
+  for (const sentence of sentenceBreaks) {
+    // If adding this sentence would make chunk too long, push current chunk
+    if (
+      (currentChunk + sentence).length > maxLength &&
+      currentChunk.length > 0
+    ) {
+      chunks.push(currentChunk.trim());
+      currentChunk = sentence;
+    } else {
+      currentChunk += sentence;
+    }
+  }
+
+  // Add the final chunk if it has content
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk.trim());
+  }
+
+  // If somehow we ended up with no chunks, just split the text
+  if (chunks.length === 0) {
+    // Simple fallback if sentence splitting fails: split by size
+    for (let i = 0; i < text.length; i += maxLength) {
+      chunks.push(text.substring(i, i + maxLength));
+    }
+  }
+
+  return chunks;
+};
+
+// Custom hook to use the chat context - defined here but not exported until the end
+const useChatContext = () => {
+  const context = useContext(ChatContext);
+  if (!context) {
+    throw new Error("useChatContext must be used within a ChatProvider");
+  }
+  return context;
+};
+
+// Provider component
+function ChatProvider({ children }) {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTyping, setActiveTyping] = useState(false);
@@ -31,22 +88,117 @@ export const ChatProvider = ({ children }) => {
   const [speechRate, setSpeechRate] = useState(1.0);
   const speechSynthesisRef = useRef(window.speechSynthesis);
   const utteranceRef = useRef(null);
+  const textChunksRef = useRef([]);
+  const currentChunkIndexRef = useRef(0);
   const { speak, cancel, speaking } = useSpeechSynthesis();
 
-  // Play text with selected voice
-  const playText = useCallback(
-    (text, messageId) => {
-      if (!text) return;
+  // Initialize speech synthesis and ensure it's available
+  useEffect(() => {
+    if ("speechSynthesis" in window) {
+      // Re-initialize speechSynthesis reference
+      speechSynthesisRef.current = window.speechSynthesis;
 
-      // Cancel any ongoing speech
-      speechSynthesisRef.current.cancel();
+      // Check if voices are available
+      const checkVoices = () => {
+        const voices = speechSynthesisRef.current.getVoices();
+        if (voices.length > 0) {
+          console.log(`${voices.length} voices available for speech synthesis`);
+        }
+      };
 
-      const utterance = new SpeechSynthesisUtterance(text);
+      // Voices might not be loaded immediately
+      speechSynthesisRef.current.onvoiceschanged = checkVoices;
+      checkVoices(); // Check immediately too
+    } else {
+      console.error("Speech synthesis not supported in this browser");
+    }
+
+    // Cleanup function
+    return () => {
+      if (speechSynthesisRef.current) {
+        speechSynthesisRef.current.cancel();
+      }
+    };
+  }, []);
+
+  // Helper to handle speech synthesis errors and events
+  const setupUtteranceEvents = (utterance, messageId, isLastChunk = false) => {
+    utterance.onstart = () => {
+      console.log("Speech started for message:", messageId);
+      setIsPlaying(true);
+      setPlayingMessageId(messageId);
+    };
+
+    utterance.onend = () => {
+      console.log("Speech ended for current chunk");
+
+      // If we have more chunks to speak
+      if (
+        !isLastChunk &&
+        textChunksRef.current.length > currentChunkIndexRef.current + 1
+      ) {
+        currentChunkIndexRef.current++;
+        speakNextChunk(messageId);
+      } else {
+        // We're done with all chunks
+        console.log("All chunks spoken for message:", messageId);
+        textChunksRef.current = [];
+        currentChunkIndexRef.current = 0;
+        setIsPlaying(false);
+        setPlayingMessageId(null);
+      }
+    };
+
+    utterance.onerror = (event) => {
+      console.error("Speech synthesis error:", event.error);
+      // Try to recover by moving to next chunk or finishing
+      if (
+        !isLastChunk &&
+        textChunksRef.current.length > currentChunkIndexRef.current + 1
+      ) {
+        currentChunkIndexRef.current++;
+        speakNextChunk(messageId);
+      } else {
+        textChunksRef.current = [];
+        currentChunkIndexRef.current = 0;
+        setIsPlaying(false);
+        setPlayingMessageId(null);
+      }
+    };
+
+    return utterance;
+  };
+
+  // Function to speak the next chunk of text
+  const speakNextChunk = (messageId) => {
+    if (textChunksRef.current.length <= currentChunkIndexRef.current) {
+      console.log("No more chunks to speak");
+      setIsPlaying(false);
+      setPlayingMessageId(null);
+      return;
+    }
+
+    const currentChunk = textChunksRef.current[currentChunkIndexRef.current];
+    const isLastChunk =
+      currentChunkIndexRef.current === textChunksRef.current.length - 1;
+
+    console.log(
+      `Speaking chunk ${currentChunkIndexRef.current + 1}/${
+        textChunksRef.current.length
+      }: "${currentChunk}"`
+    );
+
+    // Create a slight delay before speaking to prevent first word being cut off
+    setTimeout(() => {
+      // Cancel any ongoing speech first
+      if (speechSynthesisRef.current) {
+        speechSynthesisRef.current.cancel();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(currentChunk);
 
       // Apply voice settings
       if (selectedVoice) {
-        console.log("Using voice:", selectedVoice);
-
         // If we have an actual voice object from the browser
         if (selectedVoice.voice) {
           utterance.voice = selectedVoice.voice;
@@ -55,7 +207,6 @@ export const ChatProvider = ({ children }) => {
         // Apply profile settings as fallback or enhancement
         if (selectedVoice.isMale) {
           utterance.pitch = VOICE_PROFILES.MALE.pitch;
-          // We still respect the user's rate selection
           utterance.rate = speechRate * VOICE_PROFILES.MALE.rate;
         } else if (selectedVoice.isFemale) {
           utterance.pitch = VOICE_PROFILES.FEMALE.pitch;
@@ -68,19 +219,87 @@ export const ChatProvider = ({ children }) => {
         utterance.rate = speechRate;
       }
 
-      utteranceRef.current = utterance;
+      utteranceRef.current = setupUtteranceEvents(
+        utterance,
+        messageId,
+        isLastChunk
+      );
 
-      utterance.onstart = () => {
-        setIsPlaying(true);
-        setPlayingMessageId(messageId);
-      };
-
-      utterance.onend = () => {
+      try {
+        speechSynthesisRef.current.speak(utterance);
+      } catch (error) {
+        console.error("Error speaking:", error);
         setIsPlaying(false);
         setPlayingMessageId(null);
-      };
+      }
+    }, 150); // Small delay to ensure speech engine is ready
+  };
 
-      speechSynthesisRef.current.speak(utterance);
+  // Play text with selected voice
+  const playText = useCallback(
+    (text, messageId) => {
+      if (!text) {
+        console.log("No text provided to playText");
+        return;
+      }
+
+      console.log("PlayText called with text:", text);
+
+      // Cancel any ongoing speech
+      if (speechSynthesisRef.current) {
+        console.log("Cancelling previous speech");
+        speechSynthesisRef.current.cancel();
+      }
+
+      // Use direct browser API instead of react-speech-kit
+      try {
+        // Prepare the initial utterance with the complete text
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        // Set voice if available
+        if (selectedVoice && selectedVoice.voice) {
+          utterance.voice = selectedVoice.voice;
+        }
+
+        // Set rate and pitch
+        if (selectedVoice && selectedVoice.isMale) {
+          utterance.pitch = VOICE_PROFILES.MALE.pitch;
+          utterance.rate = speechRate * VOICE_PROFILES.MALE.rate;
+        } else if (selectedVoice && selectedVoice.isFemale) {
+          utterance.pitch = VOICE_PROFILES.FEMALE.pitch;
+          utterance.rate = speechRate * VOICE_PROFILES.FEMALE.rate;
+        } else {
+          utterance.rate = speechRate;
+        }
+
+        // Set event handlers
+        utterance.onstart = () => {
+          console.log("Speech started for message:", messageId);
+          setIsPlaying(true);
+          setPlayingMessageId(messageId);
+        };
+
+        utterance.onend = () => {
+          console.log("Speech ended for message:", messageId);
+          setIsPlaying(false);
+          setPlayingMessageId(null);
+        };
+
+        utterance.onerror = (error) => {
+          console.error("Speech synthesis error:", error);
+          setIsPlaying(false);
+          setPlayingMessageId(null);
+        };
+
+        // Store the utterance reference
+        utteranceRef.current = utterance;
+
+        // Speak the text
+        console.log("Speaking text:", text);
+        speechSynthesisRef.current.speak(utterance);
+      } catch (error) {
+        console.error("Error in text-to-speech:", error);
+      }
     },
     [selectedVoice, speechRate]
   );
@@ -96,7 +315,7 @@ export const ChatProvider = ({ children }) => {
         userMessage.toLowerCase().includes("hello") ||
         userMessage.toLowerCase().includes("hey")
       ) {
-        responseText = "Hey there! How are you doing today?";
+        responseText = "Kuch nahi baby";
       } else if (
         userMessage.toLowerCase().includes("love") ||
         userMessage.toLowerCase().includes("miss you")
@@ -167,11 +386,24 @@ export const ChatProvider = ({ children }) => {
 
   const playMessage = useCallback(
     (message) => {
+      console.log("Attempting to play message:", message);
+
       if (speaking && playingMessageId === message.id) {
+        console.log("Stopping playback of current message");
+
+        // Cancel using browser API
+        if (speechSynthesisRef.current) {
+          speechSynthesisRef.current.cancel();
+        }
+
+        // Also use react-speech-kit for redundancy
         cancel();
+
+        setIsPlaying(false);
         setPlayingMessageId(null);
         return false;
       } else {
+        console.log("Playing message:", message.id);
         playText(message.text, message.id);
         return true;
       }
@@ -193,7 +425,7 @@ export const ChatProvider = ({ children }) => {
     <ChatContext.Provider
       value={{
         messages,
-        sendMessage,
+        addMessage: sendMessage,
         isLoading,
         activeTyping,
         playText,
@@ -207,12 +439,6 @@ export const ChatProvider = ({ children }) => {
       {children}
     </ChatContext.Provider>
   );
-};
+}
 
-export const useChat = () => {
-  const context = useContext(ChatContext);
-  if (!context) {
-    throw new Error("useChat must be used within a ChatProvider");
-  }
-  return context;
-};
+export { ChatProvider, useChatContext };
